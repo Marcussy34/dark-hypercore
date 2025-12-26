@@ -14,6 +14,91 @@ Standard blockchains (Ethereum, Solana) force institutional traders to leak thei
 
 ## 🏰 Architecture: "The Dark Citadel"
 
+```mermaid
+graph TD
+    %% Main Title
+    Title[The 'Dark Citadel' Dual-Layer L1 Architecture]
+    style Title fill:#fff,stroke:none,font-size:20px,font-weight:bold
+
+    %% User
+    User((User via<br>Standard App/Wallet))
+    style User fill:#fff,stroke:#333
+
+    %% Layer A Stack
+    subgraph LayerA [Layer A: The 'Light' Side<br>Public EVM & Neobank]
+        direction TB
+        style LayerA fill:#f0faff,stroke:#333,color:#000
+        
+        EVM[EVM Compatible Chain<br>e.g., Reth]
+        style EVM fill:#fff,stroke:#333
+        
+        PublicState[(Public State)]
+        style PublicState fill:#fff,stroke:#333
+        
+        SmartContracts[Smart Contracts<br>Solidity]
+        style SmartContracts fill:#fff,stroke:#333
+        
+        Wallets[Standard Wallets<br>MetaMask, Rabby]
+        style Wallets fill:#fff,stroke:#333
+        
+        SpeedA[~1s Block Time<br>Fast Payments]
+        style SpeedA fill:#fff,stroke:#333,stroke-width:2px
+
+        EVM --- PublicState
+        EVM --- SmartContracts
+        EVM --- Wallets
+        EVM --- SpeedA
+    end
+
+    %% Layer B Stack
+    subgraph LayerB [Layer B: The 'Dark' Side<br>Private TEE Core & Exchange]
+        direction TB
+        style LayerB fill:#1a1a1a,stroke:#333,color:#fff
+        
+        subgraph TEE [Trusted Execution Environment<br>e.g., Intel SGX 🔒]
+            style TEE fill:#333,stroke:#fff,color:#fff
+            CLOB[Rust Core CLOB<br>Matching Engine]
+            style CLOB fill:#000,stroke:#fff,color:#fff
+        end
+        
+        EncState[(Encrypted State)]
+        style EncState fill:#000,stroke:#fff,color:#fff
+        
+        OrderBook[(Private Order Book)]
+        style OrderBook fill:#000,stroke:#fff,color:#fff
+        
+        Proofs[TEE Attestations<br>Proofs]
+        style Proofs fill:#000,stroke:#fff,color:#fff
+        
+        SpeedB[<0.2s Block Time<br>Ultra-Fast Trading]
+        style SpeedB fill:#000,stroke:#fff,stroke-width:2px,color:#fff
+
+        TEE --- EncState
+        TEE --- OrderBook
+        TEE --- Proofs
+        TEE --- SpeedB
+    end
+
+    %% Foundation
+    subgraph Foundation [Shared Validator Network & Consensus Engine<br>e.g., HyperBFT/HotStuff]
+        direction TB
+        style Foundation fill:#f5f5f5,stroke:#333
+        Validators((Validator Nodes))
+        style Validators fill:#fff,stroke:#333
+        ValNote[Single source of truth, drives both layers.]
+        style ValNote fill:#fff,stroke:none
+    end
+
+    %% Connections
+    Title --- User
+    User -->|Deposit USDC<br>Connect Wallet<br>Neobank Features| LayerA
+    
+    LayerA <==>|Native Bridge<br>Instant Memory Copy<br>Bridge to Trade| LayerB
+    
+    LayerA --- Foundation
+    LayerB --- Foundation
+```
+
 The system operates on a novel Dual-Layer architecture running on a unified validator set.
 
 ### 1. Layer A: The "Lobby" (Public EVM)
