@@ -413,9 +413,9 @@ impl MatchingEngine {
     /// Remove a fully filled ask order
     fn remove_ask_order(&self, clob: &mut CLOB, key: usize, order_id: u64, price: u64) {
         // Get the node's linked list pointers first
-        let (prev_key, next_key) = {
-            let node = clob.orders().get(key).unwrap();
-            (node.prev, node.next)
+        let (prev_key, next_key) = match clob.orders().get(key) {
+            Some(node) => (node.prev, node.next),
+            None => return, // Order already removed, nothing to do
         };
         
         // Update the previous node's next pointer
@@ -456,9 +456,9 @@ impl MatchingEngine {
     /// Remove a fully filled bid order
     fn remove_bid_order(&self, clob: &mut CLOB, key: usize, order_id: u64, price: u64) {
         // Get the node's linked list pointers first
-        let (prev_key, next_key) = {
-            let node = clob.orders().get(key).unwrap();
-            (node.prev, node.next)
+        let (prev_key, next_key) = match clob.orders().get(key) {
+            Some(node) => (node.prev, node.next),
+            None => return, // Order already removed, nothing to do
         };
         
         // Update the previous node's next pointer
