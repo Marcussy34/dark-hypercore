@@ -1,6 +1,74 @@
 [package]
 name = "dark-hypercore"
 version = "0.1.0"
-edition = "2024"
+edition = "2021"
+description = "High-frequency Layer 1 blockchain with TEE-native privacy"
+license = "MIT"
+readme = "README.md"
+
+# ============================================================================
+# DEPENDENCIES
+# ============================================================================
+# Per official crates.io documentation (December 2025):
+# - ssz_rs 0.9.0: Ethereum SSZ serialization
+# - slab 0.4.11: Pre-allocated storage for uniform data types
+# - rust_decimal 1.39.0: Fixed-point decimal math (no floating point)
+# ============================================================================
 
 [dependencies]
+# SSZ serialization - Ethereum consensus format
+# https://docs.rs/ssz_rs/0.9.0
+# Provides: SimpleSerialize derive macro, Serialize/Deserialize traits
+ssz_rs = "0.9.0"
+
+# Pre-allocated order storage - O(1) operations
+# https://docs.rs/slab/0.4.11
+# Provides: Slab<T> with insert/remove/get in O(1)
+slab = "0.4.11"
+
+# Fixed-point decimal math - NO floating point allowed!
+# https://docs.rs/rust_decimal/1.39.0
+# Provides: Decimal type with checked_* operations
+rust_decimal = "1.39"
+
+# Error handling
+thiserror = "1.0"
+
+# Hashing for state roots (SHA-256)
+sha2 = "0.10"
+
+# Hex encoding for state root display
+hex = "0.4"
+
+[dev-dependencies]
+# Benchmarking framework
+criterion = { version = "0.5", features = ["html_reports"] }
+
+# Test data generation (deterministic with seed)
+rand = "0.8"
+rand_chacha = "0.3"
+
+# ============================================================================
+# RELEASE PROFILE - Optimized for maximum performance
+# ============================================================================
+[profile.release]
+opt-level = 3          # Maximum optimization
+lto = true             # Link-time optimization for smaller/faster binary
+codegen-units = 1      # Single codegen unit for better optimization
+panic = "abort"        # Smaller binary, no unwinding overhead
+strip = true           # Strip symbols for smaller binary
+
+# ============================================================================
+# BENCHMARK PROFILE - Same as release but with debug symbols
+# ============================================================================
+[profile.bench]
+opt-level = 3
+lto = true
+codegen-units = 1
+
+# ============================================================================
+# BENCHMARKS
+# ============================================================================
+[[bench]]
+name = "matching"
+harness = false

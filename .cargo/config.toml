@@ -1,0 +1,29 @@
+# ============================================================================
+# Cargo Build Configuration for Dark HyperCore
+# ============================================================================
+# Optimizations for maximum matching engine performance
+# Target: >100,000 orders/second throughput
+# ============================================================================
+
+[build]
+# Use all available CPU cores for compilation
+jobs = -1
+
+[target.x86_64-unknown-linux-gnu]
+# Enable CPU-specific optimizations for the build machine
+# This improves performance but reduces portability
+rustflags = ["-C", "target-cpu=native"]
+
+[target.x86_64-apple-darwin]
+rustflags = ["-C", "target-cpu=native"]
+
+[target.aarch64-apple-darwin]
+rustflags = ["-C", "target-cpu=native"]
+
+# ============================================================================
+# Environment variables for development
+# ============================================================================
+[env]
+# Enable backtraces for debugging
+RUST_BACKTRACE = "1"
+
