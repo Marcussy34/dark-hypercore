@@ -29,13 +29,17 @@
 /// Core data types: Order, Trade, ExecutionReceipt
 pub mod types;
 
-// Future modules (Phase 1.3+):
-// pub mod orderbook;
-// pub mod engine;
+/// Order book: CLOB with slab-based storage
+pub mod orderbook;
+
+/// Matching engine: Deterministic order matching
+pub mod engine;
 
 // ============================================================================
 // Re-exports for convenience
 // ============================================================================
 
 pub use types::{Order, OrderType, Side, Trade, ExecutionReceipt};
+pub use orderbook::{CLOB, OrderNode, PriceLevel};
+pub use engine::{MatchingEngine, MatchResult};
 
