@@ -2,15 +2,14 @@
 
 **Project Name:** Dark HyperCore  
 **Status:** Phase 1 (Development - Local Kernel)  
-**Last Updated:** December 26, 2025
+**Last Updated:** December 26, 2025  
+**Role:** Senior Rust Protocol Engineer
 
 ---
 
 ## 1. Executive Summary
 
-Dark HyperCore addresses the **Transparency Paradox** in DeFi: while public ledgers provide trustless settlement, they expose institutional traders to MEV, front-running, and copy-trading. 
-
-By leveraging hardware-based isolation (Intel TDX) and a bare-metal Rust engine, Dark HyperCore enables sub-second, private high-frequency trading on-chain.
+Dark HyperCore is a high-frequency Layer 1 blockchain that resolves the **Transparency Paradox** in DeFi. By combining hardware-based isolation (Intel TDX) with a bare-metal, monolithic Rust engine, we enable institutional-grade privacy with sub-second finality.
 
 **Vision:** Build a high-performance Layer 1 blockchain that combines Hyperliquid-level execution speed with TEE-native privacy to create a "Darkpool by Default" financial primitive.
 
@@ -33,23 +32,35 @@ Retail users who want CEX-level speed with DEX-level self-custody and privacy.
 
 The system is built on a **"Privacy-First"** stack:
 
-### Execution (Dark Engine)
-A native Rust Central Limit Order Book (CLOB) optimized with Slab allocation to minimize memory paging inside TEEs.
+### Execution (The Dark Kernel)
+A native Rust Central Limit Order Book (CLOB) optimized with Slab allocation. It resides in the TEE to ensure all order data and matching logic are hidden from the host OS.
 
 ### Privacy (TEE-Native)
-Operations run within hardware-attested Intel TDX or AWS Nitro enclaves to ensure data is encrypted even "in-use".
+All sensitive computation runs within hardware-attested Intel TDX or AWS Nitro enclaves to ensure data is encrypted even "in-use".
 
-### Consensus (PoTE)
-A "Proof of Trusted Execution" (PoTE) protocol utilizing Attestation-Based Voting on top of a pipelined BFT algorithm (HotStuff/HyperBFT). Nodes verify hardware signatures rather than re-executing private transactions.
+### Consensus: Proof of Trusted Execution (PoTE)
+A consensus mechanism where validators verify hardware-generated Remote Attestation Quotes instead of re-executing private transactions. Implements Pipelined HotStuff (Jolteon variant) where:
+- Proposal View `v` extends `QC_{v-1}`
+- Voting logic replaces standard "Digital Signature Verification" with "TEE Attestation Verification" (PoTE)
 
 ### Auditability (View Keys)
-A dual-key system (Spend Key vs. View Key) allowing users to selectively disclose their transaction history for compliance without revealing it to the public.
+A dual-key system (Spend Key vs. View Key) for selective disclosure and regulatory compliance.
 
 ---
 
-## 4. Technical Requirements
+## 4. Technical Constraints (Strict Adherence)
 
-### 4.1 Performance Targets
+### 4.1 Language & Architecture
+- **Language:** Stable Rust only
+- **Architecture:** Monolithic binary to simplify TEE attestation and state management
+- **No Async in Hot Path:** The matching engine must remain synchronous and deterministic to ensure maximum throughput
+
+### 4.2 Data & Math
+- **Serialization:** `ssz_rs` (Simple Serialize) for all consensus and state data
+- **Math:** `rust_decimal` or custom `I80F48` fixed-point math. Floating points are strictly prohibited
+- **Memory:** Use the `slab` crate for pre-allocated order storage to prevent heap thrashing and page faults inside the TEE
+
+### 4.3 Performance Targets
 
 | Metric | Target |
 |--------|--------|
@@ -57,7 +68,7 @@ A dual-key system (Spend Key vs. View Key) allowing users to selectively disclos
 | **Latency** | <200ms end-to-end (Signature to Finality) |
 | **Execution** | Deterministic (fixed-point math, no floating points) |
 
-### 4.2 Hardware Constraints
+### 4.4 Hardware Constraints
 
 **Validation Environment:**
 - Intel Xeon Scalable 4th Gen (Sapphire Rapids) or 5th Gen (Emerald Rapids)
@@ -66,10 +77,10 @@ A dual-key system (Spend Key vs. View Key) allowing users to selectively disclos
 **Memory Management:**
 - Slab allocation for O(1) memory access to prevent TEE performance degradation
 
-### 4.3 External Interfaces (The "Handshake" API)
+### 4.5 External Interfaces (The "Handshake" API)
 
 **Input Standard:**
-- The Engine accepts `EncryptedBlobs` containing standardized S.S.Z (Simple Serialize) formatted orders
+- The Engine accepts `EncryptedBlobs` containing SSZ-formatted orders
 
 **Bridge Port:**
 - A dedicated memory region (Shared Memory Ring Buffer) reserved for the external Neobank Layer to push "Deposit/Withdrawal" events
@@ -117,37 +128,95 @@ Potential friction with global AML/KYC requirements for private ledgers.
 
 ## 8. Development Roadmap
 
-### Phase 1: Dark Kernel *(Current)*
-Native Rust Order Book with Slab Allocation.
+### Phase 1: The Dark Kernel *(Current Focus)*
 
-### Phase 2: Consensus Layer
-Implementation of PoTE and HyperBFT.
+**Goal:** Build the single-threaded deterministic matching engine.
 
-### Phase 3: Privacy SDK
-View keys and encrypted log explorer.
+**Execution Environment:**
+- Build and benchmark in **standard userspace (User Mode)** first, NOT inside the TEE yet
+- **Why:** Establish a raw performance baseline (e.g., "150k TPS on raw CPU")
+- This baseline is critical for measuring TEE overhead when moving to Phase 2
+- You need to know exactly how much performance the TEE is "costing" you
+
+**Deterministic Order Matching:**
+- Implement a `CLOB` struct using a Limit Order Book model
+- Use `Slab` to pre-allocate memory slots for `OrderNode` structs
+- Implement `match_orders` using fixed-point arithmetic
+
+**SSZ Data Structures:**
+- Define `Order`, `Trade`, and `ExecutionReceipt` structs deriving `ssz_rs::Serialize`
+
+**Local Stress Test:**
+- Benchmark 1M random orders in a tight loop to ensure sub-millisecond execution
+- Record baseline TPS metrics for future TEE comparison
+
+### Phase 2: Consensus Layer (PoTE)
+- **Migrate Phase 1 engine into TEE environment** (Intel TDX/AWS Nitro)
+- Measure and document TEE performance overhead vs. Phase 1 baseline
+- Implement the Jolteon pipelined consensus engine
+- Integrate `intel-dcap-rs` for handling hardware quotes (mocked for local dev)
+
+### Phase 3: Privacy & UX SDK
+- Implement View Key derivation and client-side (WASM) decryption
+- Establish Session Keys for automated high-frequency trading
 
 ### Phase 4: Mainnet & Governance
-Heterogeneous hardware set and Futarchy.
+- Launch Heterogeneous hardware support (Intel + AMD)
+- Deploy Futarchy-based governance for protocol upgrades
 
 ---
 
 ## 9. Technical Stack
 
-- **Language:** Rust (bare-metal, no_std where applicable)
+- **Language:** Stable Rust (bare-metal, no_std where applicable)
+- **Architecture:** Monolithic binary
 - **TEE:** Intel TDX / AWS Nitro Enclaves
-- **Consensus:** HotStuff/HyperBFT with PoTE
-- **Serialization:** Simple Serialize (SSZ)
-- **Memory:** Slab allocation for deterministic performance
+- **Consensus:** Pipelined HotStuff (Jolteon variant) with PoTE
+- **Serialization:** `ssz_rs` (Simple Serialize)
+- **Math:** `rust_decimal` or custom `I80F48` fixed-point (no floating point)
+- **Memory:** `slab` crate for pre-allocated order storage
+- **Execution Model:** Synchronous, deterministic (no async in hot path)
 
 ---
 
-## 10. Next Steps
+## 10. Implementation Requirements
 
-1. Complete Phase 1: Implement core CLOB engine with slab allocator
-2. Establish benchmarking framework for latency/throughput testing
-3. Research TDX integration requirements and SDK options
-4. Design cryptographic primitives for dual-key system
-5. Create initial test suite for order matching logic
+### Phase 1 Deliverables
+
+**Core Data Structures:**
+- `Order` struct with SSZ serialization
+- `Trade` struct with SSZ serialization
+- `ExecutionReceipt` struct with SSZ serialization
+- `CLOB` struct using Limit Order Book model
+- `OrderNode` structs allocated via `Slab`
+
+**Matching Engine:**
+- Single-threaded, synchronous `match_orders` function
+- Fixed-point arithmetic for all price/quantity calculations
+- Deterministic execution guarantees
+
+**Testing & Benchmarking:**
+- Local stress test: 1M random orders
+- Target: Sub-millisecond execution per order
+- Verify deterministic state roots across runs
+
+### Input/Output Specifications
+
+**Input Standard:**
+- Accept `EncryptedBlobs` containing SSZ-formatted orders
+
+**Output Stream:**
+- Publish State Roots every 200ms
+- Publish Attestation Quotes every 200ms
+- No trade data exposed in output stream
+
+## 11. Next Steps
+
+1. Set up Rust project with required dependencies (`ssz_rs`, `slab`, `rust_decimal`)
+2. Implement core CLOB data structures with SSZ serialization
+3. Build synchronous matching engine with fixed-point math
+4. Create benchmarking harness for 1M order stress test
+5. Verify deterministic execution and sub-millisecond performance
 
 ---
 
