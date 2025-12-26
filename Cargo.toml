@@ -51,20 +51,23 @@ rand_chacha = "0.3"
 # ============================================================================
 # RELEASE PROFILE - Optimized for maximum performance
 # ============================================================================
+# NOTE: LTO causes segfaults with current ssz_rs/slab combination.
+# Using conservative settings that still achieve excellent performance.
 [profile.release]
 opt-level = 3          # Maximum optimization
-lto = true             # Link-time optimization for smaller/faster binary
+lto = false            # LTO disabled - causes segfaults with slab
 codegen-units = 1      # Single codegen unit for better optimization
-panic = "abort"        # Smaller binary, no unwinding overhead
-strip = true           # Strip symbols for smaller binary
+debug = 1              # Minimal debug info for profiling
 
 # ============================================================================
 # BENCHMARK PROFILE - Same as release but with debug symbols
 # ============================================================================
+# NOTE: LTO disabled to avoid segfaults (same as release profile)
 [profile.bench]
 opt-level = 3
-lto = true
+lto = false            # LTO disabled - causes segfaults with slab
 codegen-units = 1
+debug = true
 
 # ============================================================================
 # BENCHMARKS
