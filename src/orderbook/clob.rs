@@ -466,9 +466,14 @@ impl CLOB {
     /// Remove an order from the slab (after it's already unlinked from price level)
     ///
     /// This is used by the matching engine after filling an order.
+    /// Returns None if the key doesn't exist in the slab.
     #[inline]
-    pub fn remove_from_slab(&mut self, key: usize) -> OrderNode {
-        self.orders.remove(key)
+    pub fn remove_from_slab(&mut self, key: usize) -> Option<OrderNode> {
+        if self.orders.contains(key) {
+            Some(self.orders.remove(key))
+        } else {
+            None
+        }
     }
     
     /// Remove an empty bid price level
@@ -494,6 +499,110 @@ impl CLOB {
     /// Decrement ask count
     pub fn decrement_ask_count(&mut self) {
         self.ask_count = self.ask_count.saturating_sub(1);
+    }
+    
+    // ========================================================================
+    // State Root (Determinism Verification)
+    // ========================================================================
+    
+    /// Compute a deterministic state root hash of the order book.
+    ///
+    /// This is critical for consensus - the same order sequence must
+    /// produce the same state root across all nodes.
+    ///
+    /// # Algorithm
+    ///
+    /// The state root is computed by hashing:
+    /// 1. All bid orders (sorted by price descending, then time)
+    /// 2. All ask orders (sorted by price ascending, then time)
+    /// 3. Metadata (order count, next IDs)
+    ///
+    /// # Returns
+    ///
+    /// A 32-byte SHA-256 hash of the order book state.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use dark_hypercore::orderbook::CLOB;
+    /// use dark_hypercore::types::{Order, Side};
+    ///
+    /// let mut clob = CLOB::with_capacity(100);
+    /// clob.add_order(Order::new(1, 100, Side::Buy, 5_000_000_000_000, 100_000_000, 0));
+    ///
+    /// let root = clob.compute_state_root();
+    /// assert_eq!(root.len(), 32);
+    /// ```
+    pub fn compute_state_root(&self) -> [u8; 32] {
+        use sha2::{Sha256, Digest};
+        
+        let mut hasher = Sha256::new();
+        
+        // Hash all bid orders (sorted high to low price, then FIFO within level)
+        for (Reverse(price), level) in self.bids.iter() {
+            // Hash price level metadata
+            hasher.update(price.to_le_bytes());
+            hasher.update(level.total_quantity.to_le_bytes());
+            hasher.update(level.order_count.to_le_bytes());
+            
+            // Hash each order in the level (FIFO order)
+            let mut current = level.head;
+            while let Some(key) = current {
+                if let Some(node) = self.orders.get(key) {
+                    let order = &node.order;
+                    hasher.update(order.id.to_le_bytes());
+                    hasher.update(order.user_id.to_le_bytes());
+                    hasher.update(order.price.to_le_bytes());
+                    hasher.update(order.quantity.to_le_bytes());
+                    hasher.update(order.remaining.to_le_bytes());
+                    hasher.update(order.timestamp.to_le_bytes());
+                    current = node.next;
+                } else {
+                    break;
+                }
+            }
+        }
+        
+        // Separator between bids and asks
+        hasher.update([0xFFu8; 8]);
+        
+        // Hash all ask orders (sorted low to high price, then FIFO within level)
+        for (price, level) in self.asks.iter() {
+            // Hash price level metadata
+            hasher.update(price.to_le_bytes());
+            hasher.update(level.total_quantity.to_le_bytes());
+            hasher.update(level.order_count.to_le_bytes());
+            
+            // Hash each order in the level (FIFO order)
+            let mut current = level.head;
+            while let Some(key) = current {
+                if let Some(node) = self.orders.get(key) {
+                    let order = &node.order;
+                    hasher.update(order.id.to_le_bytes());
+                    hasher.update(order.user_id.to_le_bytes());
+                    hasher.update(order.price.to_le_bytes());
+                    hasher.update(order.quantity.to_le_bytes());
+                    hasher.update(order.remaining.to_le_bytes());
+                    hasher.update(order.timestamp.to_le_bytes());
+                    current = node.next;
+                } else {
+                    break;
+                }
+            }
+        }
+        
+        // Hash metadata
+        hasher.update(self.order_count().to_le_bytes());
+        hasher.update(self.bid_count.to_le_bytes());
+        hasher.update(self.ask_count.to_le_bytes());
+        hasher.update(self.next_order_id.to_le_bytes());
+        hasher.update(self.next_trade_id.to_le_bytes());
+        
+        // Finalize and return the hash
+        let result = hasher.finalize();
+        let mut root = [0u8; 32];
+        root.copy_from_slice(&result);
+        root
     }
     
     /// Clear all orders from the book
